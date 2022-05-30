@@ -1,34 +1,33 @@
 locals {
-  app_container_port_name = "http"
-  app_container_port_number = "8080"
+  app_container_port_name         = "http"
+  app_container_port_number       = "8080"
   app_container_health_check_path = "healthz/"
 }
 
 resource "kubernetes_config_map" "app_config" {
   metadata {
     name      = "mieszkania-app-config"
-    namespace   = var.k8s_namespace
-    labels      = local.labels
+    namespace = var.k8s_namespace
+    labels    = local.labels
   }
   data = {
-    HOST = "0.0.0.0"
-    PORT = local.app_container_port_number
-    WEB_CONCURRENCY = "10"
-    DJANGO_SETTINGS_MODULE = "config.settings.production"
-    REDIS_URL = var.redis_url
-    DJANGO_ALLOWED_HOSTS = var.domain
-    RENDER_EXTERNAL_HOSTNAME = var.domain
-    BASE_URL = var.domain
-    DJANGO_ADMIN_URL = "admin/"
-    MAILGUN_DOMAIN = "none"
-    MAILGUN_API_KEY = "none"
+    HOST                       = "0.0.0.0"
+    PORT                       = local.app_container_port_number
+    DJANGO_SETTINGS_MODULE     = "config.settings.production"
+    REDIS_URL                  = var.redis_url
+    DJANGO_ALLOWED_HOSTS       = var.domain
+    RENDER_EXTERNAL_HOSTNAME   = var.domain
+    BASE_URL                   = var.domain
+    DJANGO_ADMIN_URL           = "admin/"
+    MAILGUN_DOMAIN             = "none"
+    MAILGUN_API_KEY            = "none"
     DJANGO_SECURE_SSL_REDIRECT = "False"
   }
 }
 
 resource "kubernetes_deployment" "app_deployment" {
   metadata {
-    name      = "${local.app_name}"
+    name      = local.app_name
     namespace = var.k8s_namespace
     labels    = local.labels
   }
@@ -36,17 +35,13 @@ resource "kubernetes_deployment" "app_deployment" {
   lifecycle {
     ignore_changes = [
       metadata.0.annotations["autopilot.gke.io/resource-adjustment"],
-
-      # gke-spot instance values, provided by GCP
-      spec.0.template.0.metadata.0.annotations["autopilot.gke.io/selector-toleration"],
-      spec.0.template.0.spec.0.toleration
     ]
   }
 
   wait_for_rollout = false
 
   spec {
-    replicas = 1
+    replicas = 2
     strategy { type = "RollingUpdate" }
 
     selector {
@@ -62,10 +57,10 @@ resource "kubernetes_deployment" "app_deployment" {
         }
 
         init_container {
-          name = "run-migrations"
-          image = var.docker_image
+          name              = "run-migrations"
+          image             = var.docker_image
           image_pull_policy = "Always"
-          command = ["python",  "manage.py", "migrate"]
+          command           = ["python", "manage.py", "migrate"]
           env_from {
             secret_ref { name = kubernetes_secret.app_init_secret.metadata.0.name }
           }
@@ -73,10 +68,6 @@ resource "kubernetes_deployment" "app_deployment" {
             config_map_ref { name = kubernetes_config_map.app_config.metadata.0.name }
           }
           resources {
-            limits = {
-              cpu    = "500m"
-              memory = "500M"
-            }
             requests = {
               cpu    = "500m"
               memory = "500M"
@@ -88,7 +79,7 @@ resource "kubernetes_deployment" "app_deployment" {
           name              = local.app_name
           image             = var.docker_image
           image_pull_policy = "Always"
-          command = ["gunicorn", "config.wsgi:application", "-t", "60"]
+          command = ["gunicorn", "config.wsgi:application", "-t", "60", "--worker-class", "gthread", "--workers", "8", "--threads", "2"]
 
           port {
             name           = local.app_container_port_name
@@ -105,22 +96,17 @@ resource "kubernetes_deployment" "app_deployment" {
           }
 
           resources {
-            limits = {
-              cpu    = "1"
-              ephemeral-storage = "500M"
-              memory = "2G"
-            }
             requests = {
-              cpu    = "1.0"
-              ephemeral-storage = "500M"
-              memory = "2G"
+              cpu               = "1000m"
+              ephemeral-storage = "1G"
+              memory            = "4G"
             }
           }
 
           startup_probe {
             http_get {
-              path        = local.app_container_health_check_path
-              port        = local.app_container_port_name
+              path = local.app_container_health_check_path
+              port = local.app_container_port_name
               http_header {
                 name  = "Host"
                 value = var.domain
@@ -131,8 +117,8 @@ resource "kubernetes_deployment" "app_deployment" {
           }
           liveness_probe {
             http_get {
-              path        = local.app_container_health_check_path
-              port        = local.app_container_port_name
+              path = local.app_container_health_check_path
+              port = local.app_container_port_name
               http_header {
                 name  = "Host"
                 value = var.domain
@@ -145,8 +131,8 @@ resource "kubernetes_deployment" "app_deployment" {
           }
           readiness_probe {
             http_get {
-              path        = local.app_container_health_check_path
-              port        = local.app_container_port_name
+              path = local.app_container_health_check_path
+              port = local.app_container_port_name
               http_header {
                 name  = "Host"
                 value = var.domain
@@ -160,23 +146,18 @@ resource "kubernetes_deployment" "app_deployment" {
         }
 
         container {
-          name    = "cloudsql-proxy"
-          image   = "gcr.io/cloudsql-docker/gce-proxy:1.30.1"
+          name  = "cloudsql-proxy"
+          image = "gcr.io/cloudsql-docker/gce-proxy:1.30.1"
           command = [
             "/cloud_sql_proxy", "-instances=${data.google_sql_database_instance.db_instance.connection_name}=tcp:5432",
             "-credential_file=/secrets/cloudsql/credentials.json", "-verbose=false"
           ]
 
           resources {
-            limits = {
-              cpu    = "500m"
-              ephemeral-storage = "500M"
-              memory = "128M"
-            }
             requests = {
-              cpu    = "500m"
+              cpu               = "500m"
               ephemeral-storage = "500M"
-              memory = "128M"
+              memory            = "250M"
             }
           }
 
@@ -199,3 +180,39 @@ resource "kubernetes_deployment" "app_deployment" {
   depends_on = [google_project_iam_member.cloudsql-proxy-sa-iam]
 }
 
+
+resource "kubernetes_manifest" "vertical_autoscaler" {
+  manifest = {
+    apiVersion = "autoscaling.k8s.io/v1"
+    kind       = "VerticalPodAutoscaler"
+    metadata = {
+      "name"      = "${local.app_name}-vertical-autoscaler"
+      "namespace" = var.k8s_namespace
+    }
+    spec = {
+      targetRef = {
+        apiVersion = "apps/v1"
+        kind       = "Deployment"
+        name       = kubernetes_deployment.app_deployment.metadata.0.name
+      }
+      updatePolicy = {
+        updateMode = "Auto"
+      }
+      resourcePolicy = {
+        containerPolicies = [
+          {
+            containerName = "cloudsql-proxy"
+            mode          = "Off"
+          },
+          {
+            containerName = local.app_name
+            maxAllowed = {
+              cpu    = "6.0"
+              memory = "10G"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -6,12 +6,7 @@ locals {
 
   default_resource_requests = {
     cpu    = "250m"
-    memory = "512Mi"
-  }
-
-  default_resource_limits = {
-    cpu    = "300m"
-    memory = "512Mi"
+    memory = "500Mi"
   }
 }
 
@@ -55,11 +50,6 @@ resource kubernetes_stateful_set redis_master {
               cpu    = merge(local.default_resource_requests, var.master_resource_requests).cpu
               ephemeral-storage = "1Gi"
               memory = merge(local.default_resource_requests, var.master_resource_requests).memory
-            }
-            limits = {
-              cpu    = merge(local.default_resource_limits, var.master_resource_limits).cpu
-              ephemeral-storage = "1Gi"
-              memory = merge(local.default_resource_limits, var.master_resource_limits).memory
             }
           }
 

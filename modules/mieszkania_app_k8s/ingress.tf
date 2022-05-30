@@ -6,7 +6,7 @@ resource "google_compute_global_address" "default" {
   }
 }
 
-resource "kubernetes_manifest" "timesheet-cert" {
+resource "kubernetes_manifest" "mieszkania_app_cert" {
   manifest = {
     "apiVersion" = "networking.gke.io/v1"
     "kind"       = "ManagedCertificate"
@@ -20,23 +20,6 @@ resource "kubernetes_manifest" "timesheet-cert" {
   }
 }
 
-#resource "kubectl_manifest" "app_lb_frontend" {
-#    yaml_body = <<YAML
-#apiVersion: networking.gke.io/v1beta1
-#kind: FrontendConfig
-#metadata:
-#  name: app-lb-frontend
-#  namespace: default
-#  annotations:
-#    kubectl.kubernetes.io/last-applied-configuration: |
-#      {"apiVersion":"networking.gke.io/v1beta1","kind":"FrontendConfig","metadata":{"annotations":{},"name":"app-lb-frontend","namespace":"default"},"spec":{"redirectToHttps":{"enabled":true,"responseCodeName":"FOUND"}}}
-#spec:
-#  redirectToHttps:
-#    enabled: true
-#    responseCodeName: FOUND
-#YAML
-#}
-
 resource "kubernetes_ingress_v1" "app_ingress" {
   metadata {
     name      = "managed-cert-ingress"
@@ -45,8 +28,7 @@ resource "kubernetes_ingress_v1" "app_ingress" {
     annotations = {
       "kubernetes.io/ingress.class" = "gce"
       "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.default.name
-      "networking.gke.io/managed-certificates" = kubernetes_manifest.timesheet-cert.manifest.metadata.name
-#      "networking.gke.io/v1beta1.FrontendConfig" = "app-lb-frontend"
+      "networking.gke.io/managed-certificates" = kubernetes_manifest.mieszkania_app_cert.manifest.metadata.name
       "app-deployment-version-hash" = base64sha256(jsonencode(kubernetes_deployment.app_deployment.spec))
     }
   }

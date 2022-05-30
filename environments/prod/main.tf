@@ -28,6 +28,7 @@ module "db" {
 module "gke" {
   source       = "../../modules/gke"
   cluster_name = "mieszkania-app-cluster"
+  project = var.project
   region       = var.region
   depends_on   = [module.db]
 }
