@@ -35,6 +35,10 @@ resource "kubernetes_deployment" "app_deployment" {
   lifecycle {
     ignore_changes = [
       metadata.0.annotations["autopilot.gke.io/resource-adjustment"],
+      spec.0.template.0.spec.0.container.0.image,
+      spec.0.template.0.spec.0.container.0.security_context,
+      spec.0.template.0.spec.0.container.1.security_context,
+      spec.0.template.0.spec.0.init_container.0.security_context,
     ]
   }
 
@@ -70,6 +74,7 @@ resource "kubernetes_deployment" "app_deployment" {
           resources {
             requests = {
               cpu    = "500m"
+              ephemeral-storage = "1G"
               memory = "500M"
             }
           }
@@ -206,10 +211,7 @@ resource "kubernetes_manifest" "vertical_autoscaler" {
           },
           {
             containerName = local.app_name
-            maxAllowed = {
-              cpu    = "6.0"
-              memory = "10G"
-            }
+            mode          = "Off"
           }
         ]
       }

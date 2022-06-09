@@ -6,7 +6,7 @@ locals {
 
   default_resource_requests = {
     cpu    = "250m"
-    memory = "500Mi"
+    memory = "512Mi"
   }
 }
 
@@ -21,9 +21,10 @@ resource kubernetes_stateful_set redis_master {
   lifecycle {
     ignore_changes = [
       metadata.0.annotations["autopilot.gke.io/resource-adjustment"],
+      spec.0.template.0.spec.0.container.0.security_context,
+      spec.0.template.0.spec.0.security_context,
     ]
   }
-
 
   spec {
     selector {
